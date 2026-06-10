@@ -1,0 +1,16 @@
+const url = 'https://tu-proyecto-default-rtdb.firebaseio.com/sensor.json';
+
+async function actualizarDatos() {
+    try {
+        const response = await fetch(url);
+        const data = await response.json();
+        
+        document.getElementById('temp').innerText = data.temperatura + " °C";
+        document.getElementById('hum').innerText = data.humedad + " %";
+    } catch (error) {
+        console.error("Error obteniendo datos de Firebase:", error);
+    }
+}
+
+// Actualiza cada 5 segundos en la pantalla del navegador
+setInterval(actualizarDatos, 5000);
