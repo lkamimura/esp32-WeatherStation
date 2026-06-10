@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Estación Meteorológica ESP32</title>
+    <title>Estación Meteorológica ESP32 - Historial</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
             --bg-color: #f4f7f6;
@@ -15,23 +16,17 @@
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
             background-color: var(--bg-color);
             color: var(--text-color);
             margin: 0;
-            padding: 0;
+            padding: 20px;
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: center;
-            min-height: 100vh;
         }
 
-        h1 {
-            margin-bottom: 5px;
-            font-size: 2rem;
-            text-align: center;
-        }
+        h1 { margin-bottom: 5px; font-size: 2rem; }
 
         .status {
             font-size: 0.9rem;
@@ -47,7 +42,6 @@
             height: 10px;
             background-color: var(--hum-color);
             border-radius: 50%;
-            display: inline-block;
             animation: pulse 2s infinite;
         }
 
@@ -60,87 +54,210 @@
         .dashboard {
             display: flex;
             gap: 20px;
-            flex-wrap: wrap;
-            justify-content: center;
-            max-width: 600px;
+            max-width: 800px;
             width: 100%;
-            padding: 0 20px;
-            box-sizing: border-box;
+            margin-bottom: 25px;
         }
 
         .card {
             background: var(--card-bg);
             border-radius: 16px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-            padding: 25px;
+            padding: 20px;
             flex: 1;
-            min-width: 200px;
             text-align: center;
-            transition: transform 0.2s;
         }
 
-        .card:hover {
-            transform: translateY(-5px);
-        }
-
-        .card h2 {
-            margin: 0 0 10px 0;
-            font-size: 1.2rem;
-            color: #666;
-        }
-
-        .value {
-            font-size: 3rem;
-            font-weight: bold;
-            margin: 0;
-        }
-
+        .card h2 { margin: 0 0 5px 0; font-size: 1.1rem; color: #666; }
+        .value { font-size: 2.5rem; font-weight: bold; margin: 0; }
         .temp-val { color: var(--temp-color); }
         .hum-val { color: var(--primary); }
+
+        .chart-container {
+            background: var(--card-bg);
+            border-radius: 16px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            padding: 25px;
+            max-width: 800px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .chart-actions {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .btn {
+            background-color: #e5e5ea;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-weight: 600;
+            color: #333;
+            transition: all 0.2s;
+        }
+
+        .btn.active {
+            background-color: var(--primary);
+            color: white;
+        }
+
+        @media (max-width: 600px) {
+            .dashboard { flex-direction: column; }
+        }
     </style>
 </head>
 <body>
 
     <h1>Estación Meteorológica</h1>
     <div class="status">
-        <span class="dot"></span> Monitoreando en tiempo real (ESP32)
+        <span class="dot"></span> Datos en tiempo real de Argentina
     </div>
 
     <div class="dashboard">
         <div class="card">
-            <h2>Temperatura</h2>
+            <h2>Última Temperatura</h2>
             <p id="temp" class="value temp-val">-- °C</p>
         </div>
-
         <div class="card">
-            <h2>Humedad</h2>
+            <h2>Última Humedad</h2>
             <p id="hum" class="value hum-val">-- %</p>
         </div>
     </div>
 
-    <script>
-        const url = 'https://esp32-weatherstation-50cbc-default-rtdb.firebaseio.com/sensor.json';
+    <div class="chart-container">
+        <div class="chart-actions">
+            <button id="btnDia" class="btn active" onclick="cambiarFiltro('dia')">Últimas 24 Horas</button>
+            <button id="btnSemana" class="btn" onclick="cambiarFiltro('semana')">Últimos 7 Días</button>
+        </div>
+        <canvas id="graficoHistorial"></canvas>
+    </div>
 
-        async function actualizarDatos() {
+    <script>
+        const url = 'https://esp32-weatherstation-50cbc-default-rtdb.firebaseio.com/historial.json';
+        let chart; 
+        let datosGlobales = [];
+        let filtroActual = 'dia'; // 'dia' o 'semana'
+
+        // Inicializar el gráfico vacío al cargar la página
+        void function inicializarGrafico() {
+            const ctx = document.getElementById('graficoHistorial').getContext('2d');
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [
+                        {
+                            label: 'Temperatura (°C)',
+                            borderColor: '#ff3b30',
+                            backgroundColor: 'rgba(255, 59, 48, 0.1)',
+                            data: [],
+                            yAxisID: 'yTemp',
+                            tension: 0.3
+                        },
+                        {
+                            label: 'Humedad (%)',
+                            borderColor: '#007aff',
+                            backgroundColor: 'rgba(0, 122, 255, 0.1)',
+                            data: [],
+                            yAxisID: 'yHum',
+                            tension: 0.3
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        yTemp: { type: 'linear', position: 'left', title: { display: true, text: 'Temp (°C)' } },
+                        yHum: { type: 'linear', position: 'right', title: { display: true, text: 'Humedad (%)' }, grid: { drawOnChartArea: false } }
+                    }
+                }
+            });
+        }();
+
+        async function obtenerHistorial() {
             try {
                 const response = await fetch(url);
                 const data = await response.json();
                 
-                if (data) {
-                    // Validamos que existan las propiedades antes de asignarlas
-                    document.getElementById('temp').innerText = (data.temperatura !== undefined) ? data.temperatura.toFixed(1) + " °C" : "-- °C";
-                    document.getElementById('hum').innerText = (data.humedad !== undefined) ? data.humedad.toFixed(1) + " %" : "-- %";
+                if (!data) return;
+
+                // Firebase devuelve un objeto con IDs locos, lo transformamos a un Array plano ordenado
+                datosGlobales = Object.keys(data).map(key => data[key]).filter(item => item.tiempo);
+                
+                // 1. Mostrar los valores más recientes en las tarjetas superiores
+                const ultimoRegistro = datosGlobales[datosGlobales.length - 1];
+                if (ultimoRegistro) {
+                    document.getElementById('temp').innerText = ultimoRegistro.temperatura.toFixed(1) + " °C";
+                    document.getElementById('hum').innerText = ultimoRegistro.humedad.toFixed(1) + " %";
                 }
+
+                // 2. Procesar y renderizar el gráfico según el filtro activo
+                procesarYGraficar();
+
             } catch (error) {
-                console.error("Error obteniendo datos de Firebase:", error);
+                console.error("Error procesando datos históricos:", error);
             }
         }
 
-        // Primera carga al abrir la página
-        actualizarDatos();
+        function procesarYGraficar() {
+            const ahora = new Date();
+            let datosFiltrados = [];
 
-        // Actualiza cada 5 segundos
-        setInterval(actualizarDatos, 5000);
+            if (filtroActual === 'dia') {
+                // Filtrar registros de las últimas 24 horas
+                const limite24h = ahora.getTime() - (24 * 60 * 60 * 1000);
+                datosFiltrados = datosGlobales.filter(item => {
+                    const fechaItem = new Date(item.tiempo.replace(" ", "T")); // Reemplazo seguro para ISO
+                    return fechaItem.getTime() >= limite24h;
+                });
+            } else if (filtroActual === 'semana') {
+                // Filtrar registros de los últimos 7 días
+                const limite7d = ahora.getTime() - (7 * 24 * 60 * 60 * 1000);
+                datosFiltrados = datosGlobales.filter(item => {
+                    const fechaItem = new Date(item.tiempo.replace(" ", "T"));
+                    return fechaItem.getTime() >= limite7d;
+                });
+            }
+
+            // Mapear las etiquetas (eje X) y los valores (eje Y)
+            const labels = datosFiltrados.map(item => {
+                // Si es filtro diario, mostramos solo HH:MM. Si es semanal, Fecha + Hora.
+                if (filtroActual === 'dia') {
+                    return item.tiempo.split(" ")[1].substring(0, 5); 
+                } else {
+                    const partes = item.tiempo.split(" ");
+                    const fechaCorta = partes[0].substring(5); // MM-DD
+                    return fechaCorta + " " + partes[1].substring(0, 5);
+                }
+            });
+
+            const temperaturas = datosFiltrados.map(item => item.temperatura);
+            const humedades = datosFiltrados.map(item => item.humedad);
+
+            // Inyectar datos nuevos al gráfico y refrescarlo
+            chart.data.labels = labels;
+            chart.data.datasets[0].data = temperaturas;
+            chart.data.datasets[1].data = humedades;
+            chart.update();
+        }
+
+        function cambiarFiltro(tipo) {
+            filtroActual = tipo;
+            document.getElementById('btnDia').classList.toggle('active', tipo === 'dia');
+            document.getElementById('btnSemana').classList.toggle('active', tipo === 'semana');
+            procesarYGraficar();
+        }
+
+        // Carga inicial al abrir la página
+        obtenerHistorial();
+
+        // Actualizar datos automáticamente de fondo cada 1 minuto (60000 ms)
+        setInterval(obtenerHistorial, 60000);
     </script>
 </body>
 </html>
