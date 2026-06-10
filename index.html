@@ -1,16 +1,146 @@
-const url = 'https://esp32-weatherstation-50cbc-default-rtdb.firebaseio.com/sensor.json';
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Estación Meteorológica ESP32</title>
+    <style>
+        :root {
+            --bg-color: #f4f7f6;
+            --card-bg: #ffffff;
+            --text-color: #333333;
+            --primary: #007aff;
+            --temp-color: #ff3b30;
+            --hum-color: #34c759;
+        }
 
-async function actualizarDatos() {
-    try {
-        const response = await fetch(url);
-        const data = await response.json();
-        
-        document.getElementById('temp').innerText = data.temperatura + " °C";
-        document.getElementById('hum').innerText = data.humedad + " %";
-    } catch (error) {
-        console.error("Error obteniendo datos de Firebase:", error);
-    }
-}
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
 
-// Actualiza cada 5 segundos en la pantalla del navegador
-setInterval(actualizarDatos, 5000);
+        h1 {
+            margin-bottom: 5px;
+            font-size: 2rem;
+            text-align: center;
+        }
+
+        .status {
+            font-size: 0.9rem;
+            color: #666;
+            margin-bottom: 30px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .dot {
+            width: 10px;
+            height: 10px;
+            background-color: var(--hum-color);
+            border-radius: 50%;
+            display: inline-block;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 0.4; }
+            50% { opacity: 1; }
+            100% { opacity: 0.4; }
+        }
+
+        .dashboard {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+            max-width: 600px;
+            width: 100%;
+            padding: 0 20px;
+            box-sizing: border-box;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: 16px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            padding: 25px;
+            flex: 1;
+            min-width: 200px;
+            text-align: center;
+            transition: transform 0.2s;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+        }
+
+        .card h2 {
+            margin: 0 0 10px 0;
+            font-size: 1.2rem;
+            color: #666;
+        }
+
+        .value {
+            font-size: 3rem;
+            font-weight: bold;
+            margin: 0;
+        }
+
+        .temp-val { color: var(--temp-color); }
+        .hum-val { color: var(--primary); }
+    </style>
+</head>
+<body>
+
+    <h1>Estación Meteorológica</h1>
+    <div class="status">
+        <span class="dot"></span> Monitoreando en tiempo real (ESP32)
+    </div>
+
+    <div class="dashboard">
+        <div class="card">
+            <h2>Temperatura</h2>
+            <p id="temp" class="value temp-val">-- °C</p>
+        </div>
+
+        <div class="card">
+            <h2>Humedad</h2>
+            <p id="hum" class="value hum-val">-- %</p>
+        </div>
+    </div>
+
+    <script>
+        const url = 'https://esp32-weatherstation-50cbc-default-rtdb.firebaseio.com/sensor.json';
+
+        async function actualizarDatos() {
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                if (data) {
+                    // Validamos que existan las propiedades antes de asignarlas
+                    document.getElementById('temp').innerText = (data.temperatura !== undefined) ? data.temperatura.toFixed(1) + " °C" : "-- °C";
+                    document.getElementById('hum').innerText = (data.humedad !== undefined) ? data.humedad.toFixed(1) + " %" : "-- %";
+                }
+            } catch (error) {
+                console.error("Error obteniendo datos de Firebase:", error);
+            }
+        }
+
+        // Primera carga al abrir la página
+        actualizarDatos();
+
+        // Actualiza cada 5 segundos
+        setInterval(actualizarDatos, 5000);
+    </script>
+</body>
+</html>
