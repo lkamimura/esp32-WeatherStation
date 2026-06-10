@@ -2,8 +2,8 @@
 #include <HTTPClient.h>
 #include <DHT.h>
 
-const char* ssid = "SF";
-const char* password = "38028413";
+const char* ssid = "SSID";
+const char* password = "PASSWORD";
 
 // URL de tu base de datos de Firebase (asegúrate de incluir el .json al final)
 const char* firebaseUrl = "https://esp32-weatherstation-50cbc-default-rtdb.firebaseio.com/sensor.json";
